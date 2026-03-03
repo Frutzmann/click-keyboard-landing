@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Click — Clavier Mecanique</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  *, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  :root {
+    --black: #0a0a0a;
+    --white: #fff;
+    --gray: #86868b;
+    --gray-light: #f5f5f7;
+    --lavande: #b8a9e8;
+    --menthe: #a8e6cf;
+    --rose: #f4b8c1;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+    background: var(--black);
+    color: var(--white);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* ── Loader ── */
+  #loader {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: var(--black);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    transition: opacity 0.6s ease, visibility 0.6s ease;
+  }
+  #loader.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  #loader p {
+    font-size: 14px;
+    color: var(--gray);
+    letter-spacing: 0.04em;
+  }
+  .loader-bar {
+    width: 200px;
+    height: 2px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .loader-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--white);
+    border-radius: 2px;
+    transition: width 0.15s linear;
+  }
+
+  /* ── Header ── */
+  #header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding: 0 clamp(24px, 4vw, 48px);
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: transparent;
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+    border-bottom: 1px solid transparent;
+    transition: background 0.3s ease, backdrop-filter 0.3s ease, border-color 0.3s ease;
+  }
+  #header.scrolled {
+    background: rgba(10, 10, 10, 0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+  }
+  .header-logo {
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--white);
+  }
+  .header-nav {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    list-style: none;
+  }
+  .header-nav a {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.7);
+    text-decoration: none;
+    transition: color 0.2s ease;
+    letter-spacing: 0.01em;
+  }
+  .header-nav a:hover {
+    color: var(--white);
+  }
+  .header-nav .cta-btn {
+    background: var(--white);
+    color: var(--black);
+    padding: 8px 20px;
+    border-radius: 100px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    transition: opacity 0.2s ease;
+  }
+  .header-nav .cta-btn:hover {
+    opacity: 0.85;
+    color: var(--black);
+  }
+
+  @media (max-width: 600px) {
+    .header-nav { gap: 16px; }
+    .header-nav a:not(.cta-btn) { display: none; }
+  }
+
+  /* ── Canvas scroll section ── */
+  #scroll-container {
+    position: relative;
+    height: 400vh;
+  }
+
+  #canvas-wrap {
+    position: sticky;
+    top: 0;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  canvas#video-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* ── Modal overlays (side cards) ── */
+  .modal-card {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    max-width: 380px;
+    width: calc(100% - 48px);
+    padding: 40px 36px;
+    background: rgba(10, 10, 10, 0.85);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    z-index: 2;
+    opacity: 0;
+    pointer-events: none;
+    transition: none;
+  }
+
+  /* Positions */
+  .modal-card.pos-left {
+    left: clamp(24px, 5vw, 80px);
+  }
+  .modal-card.pos-right {
+    right: clamp(24px, 5vw, 80px);
+  }
+  .modal-card.pos-center {
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    max-width: 600px;
+  }
+
+  /* Slide directions */
+  .modal-card.pos-left {
+    --slide-x: -60px;
+  }
+  .modal-card.pos-right {
+    --slide-x: 60px;
+  }
+  .modal-card.pos-center {
+    --slide-x: 0px;
+  }
+
+  .modal-card .modal-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .modal-card h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    color: var(--white);
+  }
+
+  .modal-card h2 {
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: var(--white);
+  }
+
+  .modal-card p {
+    font-size: clamp(0.9rem, 1.5vw, 1.05rem);
+    color: rgba(255, 255, 255, 0.65);
+    margin-top: 12px;
+    line-height: 1.6;
+  }
+
+  .modal-card .modal-cta {
+    display: inline-block;
+    margin-top: 24px;
+    padding: 14px 36px;
+    background: var(--white);
+    color: var(--black);
+    font-weight: 700;
+    font-size: 0.95rem;
+    border-radius: 100px;
+    text-decoration: none;
+    transition: opacity 0.2s ease;
+  }
+  .modal-card .modal-cta:hover {
+    opacity: 0.85;
+  }
+
+  @media (max-width: 768px) {
+    .modal-card {
+      max-width: calc(100% - 32px) !important;
+      left: 16px !important;
+      right: 16px !important;
+      transform: translateY(-50%) !important;
+      text-align: center;
+    }
+    .modal-card.pos-center {
+      transform: translate(0, -50%) !important;
+    }
+  }
+
+  /* ── Post-animation sections ── */
+  .section {
+    padding: clamp(80px, 12vw, 160px) clamp(24px, 5vw, 80px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .section-dark { background: var(--black); color: var(--white); }
+  .section-light { background: var(--gray-light); color: var(--black); }
+
+  .section-label {
+    font-size: clamp(0.75rem, 1.2vw, 0.875rem);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 16px;
+  }
+
+  .section h2 {
+    font-size: clamp(2rem, 5vw, 4rem);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+    max-width: 800px;
+  }
+
+  .section .subtitle {
+    font-size: clamp(1rem, 1.8vw, 1.35rem);
+    color: var(--gray);
+    margin-top: 20px;
+    max-width: 580px;
+    line-height: 1.5;
+  }
+
+  .section-light .subtitle { color: #6e6e73; }
+
+  /* Specs grid */
+  .specs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 48px;
+    margin-top: 64px;
+    width: 100%;
+    max-width: 900px;
+  }
+
+  .spec-item h3 {
+    font-size: clamp(2rem, 4vw, 3.2rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  .spec-item p {
+    font-size: clamp(0.85rem, 1.2vw, 1rem);
+    color: var(--gray);
+    margin-top: 6px;
+  }
+
+  .section-light .spec-item p { color: #6e6e73; }
+
+  /* Accent colors */
+  .accent-lavande { color: var(--lavande); }
+  .accent-menthe { color: var(--menthe); }
+  .accent-rose { color: var(--rose); }
+
+  /* Fade-in on scroll */
+  .fade-in {
+    opacity: 0;
+    transform: translateY(40px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+  .fade-in.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ── Footer ── */
+  footer {
+    padding: 40px 24px;
+    text-align: center;
+    background: var(--black);
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  footer p {
+    font-size: 13px;
+    color: var(--gray);
+  }
+</style>
+</head>
+<body>
+
+<!-- Loader -->
+<div id="loader">
+  <p id="loader-text">Chargement des images...</p>
+  <div class="loader-bar">
+    <div class="loader-bar-fill" id="loader-fill"></div>
+  </div>
+</div>
+
+<!-- Header -->
+<header id="header">
+  <span class="header-logo">Click</span>
+  <nav>
+    <ul class="header-nav">
+      <li><a href="#section-design">Design</a></li>
+      <li><a href="#section-specs">Specs</a></li>
+      <li><a href="#section-rgb">RGB</a></li>
+      <li><a href="#section-design" class="cta-btn">Acheter</a></li>
+    </ul>
+  </nav>
+</header>
+
+<!-- Scroll-driven video section -->
+<div id="scroll-container">
+  <div id="canvas-wrap">
+    <canvas id="video-canvas"></canvas>
+
+    <!-- Hero center -->
+    <div class="modal-card pos-center" data-start="0" data-end="0.15" data-side="center">
+      <h1>Click</h1>
+      <p>Le clavier mecanique qui change tout.</p>
+    </div>
+
+    <!-- Switches — left -->
+    <div class="modal-card pos-left" data-start="0.25" data-end="0.45" data-side="left">
+      <span class="modal-label accent-lavande">Switches</span>
+      <h2>Gateron Pro</h2>
+      <p>Toucher soyeux, actuation a 1.8 mm. Pre-lubrifies en usine pour une frappe fluide et silencieuse des la premiere touche.</p>
+    </div>
+
+    <!-- RGB — right -->
+    <div class="modal-card pos-right" data-start="0.55" data-end="0.75" data-side="right">
+      <span class="modal-label accent-menthe">Eclairage</span>
+      <h2>RGB Underglow</h2>
+      <p>16 millions de couleurs, effets personnalisables par touche. Synchronisez l'ambiance avec votre setup via le logiciel Click Studio.</p>
+    </div>
+
+    <!-- CTA final — center -->
+    <div class="modal-card pos-center" data-start="0.85" data-end="1" data-side="center">
+      <h2>Disponible maintenant.</h2>
+      <p>A partir de 149 &euro;</p>
+      <a href="#" class="modal-cta">Commander</a>
+    </div>
+  </div>
+</div>
+
+<!-- Post-animation sections -->
+<section id="section-design" class="section section-dark fade-in">
+  <span class="section-label accent-lavande">Design</span>
+  <h2>Usine dans l'aluminium. Sublime dans chaque detail.</h2>
+  <p class="subtitle">Chassis aluminium CNC, keycaps PBT double-shot en profil Cherry. Une palette pastel pensee pour se demarquer.</p>
+  <div class="specs-grid">
+    <div class="spec-item">
+      <h3 class="accent-lavande">Alu CNC</h3>
+      <p>Chassis monobloc anodise</p>
+    </div>
+    <div class="spec-item">
+      <h3 class="accent-menthe">PBT</h3>
+      <p>Keycaps double-shot, profil Cherry</p>
+    </div>
+    <div class="spec-item">
+      <h3 class="accent-rose">Pastel</h3>
+      <p>Lavande, menthe et rose</p>
+    </div>
+  </div>
+</section>
+
+<section id="section-specs" class="section section-light fade-in">
+  <span class="section-label" style="color: #6e6e73;">Performance</span>
+  <h2>Concu pour la vitesse. Pense pour le confort.</h2>
+  <p class="subtitle">Hot-swap, polling a 1000 Hz, NKRO complet. Connectez-vous en USB-C ou en Bluetooth 5.1, sans compromis.</p>
+  <div class="specs-grid">
+    <div class="spec-item">
+      <h3>Hot-Swap</h3>
+      <p>Changez vos switches sans soudure</p>
+    </div>
+    <div class="spec-item">
+      <h3>1000 Hz</h3>
+      <p>Taux de polling ultra-rapide</p>
+    </div>
+    <div class="spec-item">
+      <h3>NKRO</h3>
+      <p>Chaque touche enregistree, toujours</p>
+    </div>
+    <div class="spec-item">
+      <h3>BT 5.1</h3>
+      <p>USB-C filaire ou sans-fil</p>
+    </div>
+  </div>
+</section>
+
+<section id="section-rgb" class="section section-dark fade-in">
+  <span class="section-label accent-menthe">RGB</span>
+  <h2>16 millions de couleurs. Votre style, votre lumiere.</h2>
+  <p class="subtitle">Underglow et retro-eclairage par touche. Creez vos effets, synchronisez avec vos jeux, ou laissez le mode reactif faire le show.</p>
+  <div class="specs-grid">
+    <div class="spec-item">
+      <h3 class="accent-menthe">Per-Key</h3>
+      <p>Retro-eclairage individuel par touche</p>
+    </div>
+    <div class="spec-item">
+      <h3 class="accent-lavande">Underglow</h3>
+      <p>Halo lumineux sous le chassis</p>
+    </div>
+    <div class="spec-item">
+      <h3 class="accent-rose">Sync</h3>
+      <p>Compatible Click Studio</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>&copy; 2026 Click.</p>
+</footer>
+
+<script>
+(function () {
+  const FRAME_COUNT = 121;
+  const FRAME_PATH = 'assets/frames/frame_';
+
+  const canvas = document.getElementById('video-canvas');
+  const ctx = canvas.getContext('2d');
+  const scrollContainer = document.getElementById('scroll-container');
+  const loader = document.getElementById('loader');
+  const loaderFill = document.getElementById('loader-fill');
+  const modals = document.querySelectorAll('.modal-card');
+  const header = document.getElementById('header');
+
+  // ── Preload frames ──
+  const frames = [];
+  let loadedCount = 0;
+
+  function frameSrc(i) {
+    return FRAME_PATH + String(i).padStart(4, '0') + '.webp';
+  }
+
+  function preloadFrames() {
+    return new Promise((resolve) => {
+      for (let i = 1; i <= FRAME_COUNT; i++) {
+        const img = new Image();
+        img.src = frameSrc(i);
+        img.decode().then(() => {
+          loadedCount++;
+          loaderFill.style.width = ((loadedCount / FRAME_COUNT) * 100) + '%';
+          if (loadedCount === FRAME_COUNT) resolve();
+        }).catch(() => {
+          loadedCount++;
+          loaderFill.style.width = ((loadedCount / FRAME_COUNT) * 100) + '%';
+          if (loadedCount === FRAME_COUNT) resolve();
+        });
+        frames[i - 1] = img;
+      }
+    });
+  }
+
+  // ── Canvas cover-fit ──
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+
+  function drawFrame(img) {
+    if (!img || !img.naturalWidth) return;
+    const cw = canvas.width, ch = canvas.height;
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const scale = Math.max(cw / iw, ch / ih);
+    const dw = iw * scale, dh = ih * scale;
+    const dx = (cw - dw) / 2, dy = (ch - dh) / 2;
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.drawImage(img, dx, dy, dw, dh);
+  }
+
+  // ── Lerp for smooth scroll ──
+  let currentFrame = 0;
+  let targetFrame = 0;
+
+  function getScrollProgress() {
+    const rect = scrollContainer.getBoundingClientRect();
+    const scrollable = scrollContainer.offsetHeight - window.innerHeight;
+    if (scrollable <= 0) return 0;
+    const progress = -rect.top / scrollable;
+    return Math.max(0, Math.min(1, progress));
+  }
+
+  // ── Modal card visibility ──
+  function updateModals(progress) {
+    modals.forEach((el) => {
+      const start = parseFloat(el.dataset.start);
+      const end = parseFloat(el.dataset.end);
+      const side = el.dataset.side;
+      const fadeIn = 0.04;
+      const fadeOut = 0.04;
+
+      let opacity = 0;
+      let slideX = 0;
+
+      if (progress >= start && progress <= end) {
+        const inProgress = Math.min((progress - start) / fadeIn, 1);
+        const outProgress = Math.min((end - progress) / fadeOut, 1);
+        opacity = Math.min(inProgress, outProgress);
+
+        if (side === 'left') {
+          slideX = -60 * (1 - opacity);
+        } else if (side === 'right') {
+          slideX = 60 * (1 - opacity);
+        }
+      }
+
+      el.style.opacity = opacity;
+
+      if (side === 'center') {
+        el.style.transform = 'translate(-50%, -50%) scale(' + (0.92 + 0.08 * opacity) + ')';
+      } else {
+        el.style.transform = 'translateY(-50%) translateX(' + slideX + 'px)';
+      }
+    });
+  }
+
+  // ── Header scroll effect ──
+  function updateHeader() {
+    if (window.scrollY > 40) {
+      header.classList.add('scrolled');
+    } else {
+      header.classList.remove('scrolled');
+    }
+  }
+
+  // ── Animation loop ──
+  let ticking = false;
+
+  function onScroll() {
+    const progress = getScrollProgress();
+    targetFrame = Math.round(progress * (FRAME_COUNT - 1));
+    updateModals(progress);
+    updateHeader();
+    if (!ticking) {
+      ticking = true;
+      requestAnimationFrame(tick);
+    }
+  }
+
+  function tick() {
+    currentFrame += (targetFrame - currentFrame) * 0.15;
+    const idx = Math.round(currentFrame);
+    if (frames[idx]) {
+      drawFrame(frames[idx]);
+    }
+
+    if (Math.abs(currentFrame - targetFrame) > 0.5) {
+      requestAnimationFrame(tick);
+    } else {
+      currentFrame = targetFrame;
+      if (frames[targetFrame]) drawFrame(frames[targetFrame]);
+      ticking = false;
+    }
+  }
+
+  // ── Fade-in sections on scroll (IntersectionObserver) ──
+  function initFadeIns() {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.15 });
+
+    document.querySelectorAll('.fade-in').forEach((el) => observer.observe(el));
+  }
+
+  // ── Smooth scroll for nav links ──
+  document.querySelectorAll('#header a[href^="#"]').forEach((link) => {
+    link.addEventListener('click', (e) => {
+      const target = document.querySelector(link.getAttribute('href'));
+      if (target) {
+        e.preventDefault();
+        target.scrollIntoView({ behavior: 'smooth' });
+      }
+    });
+  });
+
+  // ── Init ──
+  resizeCanvas();
+  window.addEventListener('resize', () => {
+    resizeCanvas();
+    const idx = Math.round(currentFrame);
+    if (frames[idx]) drawFrame(frames[idx]);
+  });
+
+  preloadFrames().then(() => {
+    loader.classList.add('hidden');
+    if (frames[0]) drawFrame(frames[0]);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    initFadeIns();
+  });
+})();
+</script>
+</body>
+</html>
